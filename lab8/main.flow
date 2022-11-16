@@ -1,0 +1,15 @@
+import calculator;
+//import ar;
+
+
+main(){
+    str = "d(((7*(x^2))-(8*x))+10)/d(x)";
+    //str = "((1 + 1)^2)";
+    expr = s2ar(str);
+    //println(ar2s(expr))
+
+    println(ar2s(simplArExpr(s2ar(str))));
+    tree = makeVarTree([Pair("x", Pair(2, 1))]);
+
+    printFract(expr, tree)
+}

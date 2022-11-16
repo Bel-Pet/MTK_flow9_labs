@@ -1,0 +1,37 @@
+import string;
+import ds/tree;
+
+
+p2s(arr : [Pair<int, int>]) -> string {
+    strGlue(map(arr, \k -> "[" + i2s(k.first) + ", " + i2s(k.second) + "]"), ", ")
+}
+
+arr2t(arr : [int]) -> Tree {
+    foldi(arr,
+         makeTree(),
+        \i, 
+        res, 
+        n -> switch(lookupTree(res, n)){
+                    Some(v):setTree(res, n, concat(v, [i]));
+                    None():setTree(res, n, [i]);
+            })
+}
+
+arr2p(arr : [int], m : int)->[Pair<int, int>]{
+    tree = arr2t(arr);
+    
+    foldi(arr,
+         [], 
+         \i, 
+         res, 
+         n -> switch(lookupTree(tree, m - n)){
+                     Some(v): concat(res, map(v, \j -> Pair(i, j)));
+                     None(): res;
+            })
+}
+
+main(){
+    arr = [4, 2, 7, 1, 5, 6, 3, 9, 8, 10];
+    mapi(arr, \i, v -> println(i2s(i) + "-" + i2s(v)));
+    println(p2s(arr2p(arr, 11)))
+}

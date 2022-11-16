@@ -1,0 +1,66 @@
+import ratfun;
+
+
+export {
+    simplifyByCommon(expr : ArExpr, treeCommons : Tree<ArExpr, ArExpr>) -> ArExpr;
+
+    commonReduce(exprStr : string);
+}
+
+makeCommonsSet(commons : [common]) -> Tree<ArExpr, ArExpr> {
+    fold(commons, makeTree(), \acc, com -> setTree(acc, com.from, com.to));
+}
+
+commonReduce(exprStr : string) {
+    afterUsingCommon = simplifyByCommon(s2ar(exprStr), commonsTree);
+    println("Primal expr:" + exprStr);
+    println("After common:" + ar2s(afterUsingCommon));
+}
+
+simplifyByCommon(expr: ArExpr, treeCommons :Tree<ArExpr, ArExpr>) -> ArExpr {
+    if(containsKeyTree(treeCommons, expr)) {
+        println("Found sutiable commmon!");
+        commonTo = lookupTree(treeCommons, expr);
+        commonTo ?? commonTo : expr;
+    }
+    else{
+        println("Cannot simplify!");
+        expr;
+    }
+}
+
+//Инициализация набора тождеств
+    commonSet = [common(s2ar("((x - z) + (y + z))"), s2ar("(x + y)")),
+    common(s2ar("((x + z) + (y - z))"), s2ar("(x + y)")),
+    common(s2ar("(x + x)"), s2ar("(2 * x)")),
+    common(s2ar("(x-x)"), s2ar("0")),
+    common(s2ar("--x"), s2ar("x")),
+    common(s2ar("(x+y)"), s2ar("(y+x)")),
+    common(s2ar("(x*y)"), s2ar("(y*x)")),
+    common(s2ar("(x+0)"), s2ar("x")),
+    common(s2ar("(0+x)"), s2ar("x")),
+    common(s2ar("(x-0)"), s2ar("x")),
+    common(s2ar("(0-x)"), s2ar("-x")),
+    common(s2ar("(x + -x)"), s2ar("0")),
+    common(s2ar("(-x + x)"), s2ar("0")),
+    common(s2ar("(x*0)"), s2ar("0")),
+    common(s2ar("(0*x)"), s2ar("0")),
+    common(s2ar("(x*1)"), s2ar("x")),
+    common(s2ar("(1*x)"), s2ar("x")),
+    common(s2ar("(x*-1)"), s2ar("-x")),
+    common(s2ar("(-1*x)"), s2ar("-x")),
+    common(s2ar("(x/x)"), s2ar("1")),
+    common(s2ar("(0/x)"), s2ar("0")),
+    common(s2ar("((x*z)+(y*z))"), s2ar("((x+y)*z)")),
+    common(s2ar("((x+y)*z)"), s2ar("((x*z)+(y*z))")),
+    common(s2ar("((x+y)+z)"), s2ar("(x + (y+z))")),
+    common(s2ar("((x*y)*z)"), s2ar("(x*(y*z))")),
+    common(s2ar("((x*x) - (y*y))"), s2ar("((x-y)*(x+y))")),
+    common(s2ar("((x-y)*(x+y))"), s2ar("((x*x) - (y*y))")),
+    common(s2ar("((x-y)*(x-y))"), s2ar("(((x*x) + (y*y)) - (2*(x*y)))")),
+    common(s2ar("(((x*x) + (y*y)) - (2*(x*y)))"), s2ar("((x-y)*(x-y))")),
+    common(s2ar("((x+y)*(x+y))"), s2ar("(((x*x) + (y*y)) + (2*(x*y)))")),
+    common(s2ar("(((x*x) + (y*y)) + (2*(x*y)))"), s2ar("((x+y)*(x+y))"))
+];
+
+commonsTree = makeCommonsSet(commonSet);

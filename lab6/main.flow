@@ -1,0 +1,84 @@
+import string;
+import sys/system;
+import lingo/pegcode/driver;
+import ds/queue;
+
+ArExpr ::= ArSum, ArMult, ArInt;
+ArInt(v : int);
+ArSum(l : ArExpr, r : ArExpr);
+ArMult(l : ArExpr, r : ArExpr); 
+
+RpnExpr ::= RpnOp, RpnInt;
+RpnOp(str : string);
+RpnInt(v : int);
+
+s2ar(str : string) -> ArExpr {
+    e_gr = "#include arith.lingo";
+    parsic(
+         compilePegGrammar(e_gr),
+         str,
+         SemanticActions(setTree(defaultPegActions.t,
+         "createArInt", \s -> ArInt(s2i(s[0])))))
+}
+
+ar2arrRPN(expr : ArExpr) -> [RpnExpr] {
+    switch(expr){
+        ArMult(l, r) : concat(concat(ar2arrRPN(l), ar2arrRPN(r)), [RpnOp("*")]);
+        ArSum(l, r) : concat(concat(ar2arrRPN(l), ar2arrRPN(r)), [RpnOp("+")]);
+        ArInt(v) : [RpnInt(v)];
+    }
+}
+
+exprRPN2s(expr : RpnExpr) -> string {
+    switch(expr){
+        RpnOp(s) : s;
+        RpnInt(v) : i2s(v);
+    }
+}
+
+op2i(str : string, l : List<int>) -> Maybe<List<int>> {
+    switch(l) {
+        Cons(a1, l1) : {
+            switch(l1){
+                Cons(a2, l2) : {
+                    if(str == "+") Some(Cons(a1 + a2, l2))
+                    else if(str == "*") Some(Cons(a1 * a2, l2))
+                    else None()
+                }
+                EmptyList() : None();
+            }
+        }
+        EmptyList(): None();
+    }
+}
+
+sRPN2i(str : string) -> Maybe<int> {
+    arr = strSplit(str, " ");
+    
+    stack = fold(arr, Some(makeList()), \acc, r -> {
+        maybeBind(acc, \ac -> {
+            if (isDigit(r)) Some(Cons(s2i(r), ac))
+            else op2i(r, ac)
+        })
+    });
+
+    switch(stack){
+        Some(v) : {
+            if(countList(v) == 1) Some(headList(v, 0))
+            else None()
+        }
+        None() : None()
+    }
+}
+
+
+main() {
+    str = "(((2*(2+3))*4)+2)";
+    arr = ar2arrRPN(s2ar(str));
+    
+    strRPN = strGlue(map(arr, \i -> exprRPN2s(i)), " ");
+    println(strRPN);
+
+    valueRPN = sRPN2i(strRPN);
+    if(isSome(valueRPN)) println(i2s(either(valueRPN, 0)))
+}

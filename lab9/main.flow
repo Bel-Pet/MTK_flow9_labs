@@ -1,0 +1,45 @@
+import simplratfun;
+
+
+main() {
+    rulesArr = [
+                Pair("(x - x)", "0"),
+                Pair("(x * x)", "(x^2)"),
+                Pair("((x - y) * (x + y))", "((x^2) - (y^2))"),
+                Pair("(x + x)", "(2*x)"),
+                Pair("((y * x) + (z * x))", "((y + z) * x)"),
+                Pair("(0 * x)", "0"),
+                Pair("(x + 0)", "x"),
+                Pair("(x * 1)", "x"),
+                Pair("(-x + x)", "0"),
+                Pair("--x", "x"),
+                Pair("(x - -y)", "(x + y)"),
+                Pair("(x + -y)", "(x - y)"),
+                Pair("(x * (y * z))", "((x * y) * z)"),
+                Pair("(x + (y + z))", "((x + y) + z)"),
+                Pair("(x - (y - z))", "((x - y) - z)"),
+                Pair("(x + y)", "(y + x)"),
+                Pair("(x - y)", "(y - x)"),
+                Pair("(x * y)", "(y * x)"),
+                Pair("(x / -y)", "(-x / y)"),
+                Pair("((x / y) + (z / y))", "((x + z) / y)")
+    ];
+    rules = makeIdentities(rulesArr);
+
+    str = "(10 - ((((x * y) * y) / -x) + (-(y + x) / x)))";
+    str1 = "((10 / x) + (((x * (y^2)) / -x) + (-(y - x) / x)))";
+    str2 = "((((a + 1) / (7 * c)) * ((7 + (6 * c)) / x)) / ((3 * (a + 1)) / (x * x)))";
+    str3 = "((((x - 6) / (6 * y)) / (((x * x) - (y * y)) / y)) * (((x * x) + ((2 * (x * y)) + (y * y))) / x))";
+    str4 = "((((9 * (x * x)) - 4) / ((3 * x) + 2)) - (3 * x))";
+    str5 = "(((4 * (a * a)) - 9) * ((1 / ((2 * a) - 3)) - (1 / ((2 * a) + 3))))";
+    str6 = "(0 * a)";
+    str7 = "(x * (x * y))";
+    
+    e1 = s2ar(str);
+    e2 = s2ar(rf2s(ar2rf(e1)));
+    e3 = repeatSimpleRatFunc(e2, rules, 1000);
+    println(str);
+    println(ar2s(e3));
+
+    quit(0)
+}

@@ -1,0 +1,14 @@
+import calculator;
+
+
+main() {
+    str = "((x+y)*z)";
+    expr = s2ar(str);
+    println(ar2s(expr));
+
+    tree = makeVarTree([Pair("x", Pair(1, 2)), Pair("y", Pair(2, 3)), Pair("z", Pair(6, 1))]);
+
+    result = calc(expr, tree);
+
+    printFract(result);
+}

@@ -1,0 +1,35 @@
+import string;
+
+
+fibR(n : int) -> [int] {
+    if(n == 0) []
+    else if(n == 1) [1]
+    else if(n == 2) [1, 1]
+    else {
+        arr = fibR(n-1);
+        concat(arr, [arr[n-2] + arr[n-3]]);
+    }
+}
+
+fibP(n : int, arr : ref[int]) -> [int] {
+    if(n <= 2) ^arr
+    else{
+        refArrayPush(arr, ^arr[length(^arr) - 1] + ^arr[length(^arr) - 2]);
+        fibP(n - 1, arr);
+    }
+}
+
+fibT(n : int, arr:[int]) -> [int]{
+    if(n <= 2) arr
+    else
+     fibT(n-1, concat(arr, [arr[length(arr) - 1] +  arr[length(arr) - 2]]))
+}
+
+main() {
+    println(strGlue(map(fibR(10), i2s), ", "));
+
+    println(strGlue(map(fibT(10, [1, 1]), i2s), ", "));
+
+    effArr:ref[int] = ref[1, 1];
+    println(strGlue(map(fibP(10, effArr), i2s), ", "));
+}

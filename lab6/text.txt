@@ -1,0 +1,53 @@
+PolySum2s(ps : PolySum) -> string {
+    pairsPolySum = tree2pairs(ps.sum);
+    if (length(pairsPolySum) == 0) "0"
+    else {
+        foldi(pairsPolySum, "", \i, acc, v -> {
+            polySumStr = acc + createReduceStr(v.second, PolyMult2s(v.first));
+            if(i == length(pairsPolySum) - 1) polySumStr
+            else polySumStr + " + "
+            }
+        )
+    }
+}
+
+createReduceStr(coeff : int, value : string) -> string {
+    if ((coeff != 1) && (value != "1")) concatStrings([i2s(coeff), "*", value])
+    else if((coeff != 1) && (value == "1")) concatStrings([i2s(coeff)])
+    else if((coeff == 1) && (value != "1")) concatStrings([value])
+    else concatStrings([i2s(coeff)])
+}
+
+// main() {
+//     rulesArr = [
+//                 Pair("(z - z)", "0"), 
+//                 Pair("((x - y) * (x + y))", "((x^2) - (y^2))"),
+//                 Pair("(b + b)", "(2*b)"),
+//                 Pair("((y * x) + (z * x))", "((y + z) * x)"),
+//                 Pair("(x * (y * z))", "((x * y) * z)"),
+//                 Pair("(x + (y + z))", "((x + y) + z)"),
+//                 Pair("(x - (y - z))", "((x - y) - z)"),
+//                 Pair("(x - (y + z))", "((x - y) + z)"),
+//                 Pair("(x + (y - z))", "((x + y) - z)"),
+//                 Pair("(0 * x)", "0"),
+//                 Pair("(a + 0)", "a"),
+//                 Pair("(v * 1)", "v"),
+//                 Pair("(-x + x)", "0"),
+//                 Pair("--x", "x"),
+//                 Pair("(x + y)", "(y + x)")
+//     ];
+//     rules = makeIdentities(rulesArr);
+
+//     str1 = "((((y + y) + 3) - ((a - b) * (a + b))) + (p - p))";
+//     str2 = "((4*x) + (5*x))";
+//     str3 = "(((((8*z) + ((37*y) / ((17*x) - 9))) + 523) + (6*b)) + ((523 + ((6*b) + (8*z))) + ((37*y) / ((17*x) - 9))))";
+//     str4 = "((((167*z) - 3) - ((123*a) + 9)) * (((167*z) - 3) + (9 + (123*a))))";
+//     str5 = "(((3*x) + 7) + (7 + (3*x)))";
+    
+//     expr = s2ar(str1);
+//     exs = simpleRatFunc(expr, rules, 0, 100);
+//     println(str1);
+//     println(ar2s(exs));
+
+//     quit(0)
+// }

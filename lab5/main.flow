@@ -1,0 +1,48 @@
+import string;
+import sys/system;
+import lingo/pegcode/driver;
+
+ArExpr::= ArSum, ArMult, ArInt;
+ArInt(v : int);
+ArSum(l : ArExpr, r : ArExpr);
+ArMult(l : ArExpr, r : ArExpr); 
+
+s2ar(str : string) -> ArExpr {
+    e_gr = "#include arith.lingo";
+    parsic(
+         compilePegGrammar(e_gr),
+         str,
+         SemanticActions(setTree(defaultPegActions.t,
+         "createArInt", \s -> ArInt(s2i(s[0])))))
+}
+
+ar2s(expr : ArExpr) -> string {
+    switch(expr){
+        ArMult(l, r) : "(" + ar2s(l) + "*" + ar2s(r) + ")";
+        ArSum(l, r) : "(" + ar2s(l) + "+" + ar2s(r) + ")";
+        ArInt(v) : i2s(v);
+    }
+}
+
+tr2s(expr : ArExpr) -> string {
+    switch(expr){
+        ArMult(l, r) : "ArMult(" + tr2s(l) + ", " + tr2s(r) + ")";
+        ArSum(l, r) : "ArSum(" + tr2s(l) + ", " + tr2s(r) + ")";
+        ArInt(v) : "ArInt(" + i2s(v) + ")";
+    }
+}
+
+ar2i(expr : ArExpr) -> int {
+    switch(expr){
+        ArMult(l, r) : ar2i(l) * ar2i(r);
+        ArSum(l, r) : ar2i(l) + ar2i(r);
+        ArInt(v) : v;
+    }
+}
+
+main() {
+    str = "(2+(3*4))";
+    //println(ar2s(s2ar(str)));
+    //println(ar2i(s2ar(str)));
+    println(tr2s(s2ar(str)));
+}
