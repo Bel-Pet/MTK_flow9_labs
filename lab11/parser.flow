@@ -1,0 +1,70 @@
+import ds/tree;
+import ds/set;
+import string;
+import lingo/pegcode/driver;
+
+NmProg(decls : [NmDecl], body : NmStat);
+
+NmDecl(var : string, type : NmType);
+
+NmType ::= NmIntType, NmArrType;
+
+NmIntType();
+
+NmArrType(type : NmType);
+
+NmExp ::= NmBinOp, NmUnOp, NmUpd, NmApp, NmVar, NmInt;
+	NmBinOp(op: string, lhs : NmExp, rhs : NmExp);
+	NmUnOp(op: string, e : NmExp);
+	NmUpd(arr : NmExp, ind : NmExp, val : NmExp);
+	NmApp(arr : NmExp, ind : NmExp);
+	NmVar(name : string);
+	NmInt(val : int);
+
+NmStat ::= NmAssign, NmTest, NmSeq, NmChoice, NmLoop, NmPrint;
+	NmAssign(var : string, val : NmExp);
+	NmTest(cond : string, lhs : NmExp, rhs : NmExp);
+	NmSeq(stats : [NmStat]);
+	NmChoice(stats : [NmStat]);
+	NmLoop(body : NmStat);
+	NmPrint(e : NmExp);
+
+s2nm(str : string) -> NmProg {
+	neg_op = \op -> {
+		if (op == "!=") "=="
+		else if (op == "==") "!="
+		else if (op == "<") ">="
+		else if (op == ">") "<="
+		else if (op == "<=") ">"
+		else if (op == ">=") "<"
+		else "";
+	}
+	parsic(nemo_parser, str, 
+		SemanticActions(
+			mergeTree(defaultPegActions.t,
+			pairs2tree([
+				Pair("createSeq", \s -> NmSeq(concat3([s[0]], [s[1]], s[2]))),
+				Pair("createChoice", \s -> NmChoice(concat3([s[0]], [s[1]], s[2]))),
+				Pair("createIfElse", \s -> NmChoice([NmSeq([NmTest(s[0], s[1], s[2]), s[3]]), NmSeq([NmTest(neg_op(s[0]), s[1], s[2]), s[4]])])),
+				Pair("createWhile", \s -> NmSeq([NmLoop(NmSeq([NmTest(s[0], s[1], s[2]), s[3]])), NmTest(neg_op(s[0]), s[1], s[2])])),
+			]))
+		)
+	)
+}
+
+nemo_parser = compilePegGrammar("#include nemo.lingo");
+
+execute(file : string){
+	src = getFileContent(file);
+
+	prog = s2nm(src);
+	
+	println(prog);
+
+}
+
+main() {
+	file = "prog.nm";
+	execute(file);
+    quit(0)
+}
