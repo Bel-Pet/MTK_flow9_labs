@@ -1,0 +1,33 @@
+prog = ws decl*:d stat:b { NmProg(:d, :b)};
+decl = "VAR" ws id:v ":" ws type:t ";" ws { NmDecl(:v, :t) };
+
+type = int | array;
+int = "INT" ws { NmIntType() };
+array = "[" ws type:t "]" ws { NmArrType(:t) };
+
+stat = assignment | sequence | test | choice | loop | while | s;
+assignment = id:v ":=" ws expr:e { NmAssign(:v, :e) };
+s        = "{" ws "}" { createS() };
+sequence = "{" ws stat:l ws subsequence*:r "}" { createSeq(:l, :r) };
+subsequence = ";" ws stat;
+test = "(" ws expr:e1 cond$s ws expr:e2 ")" ws "?" ws { NmTest($s, :e1, :e2) };
+choice = "{" ws stat:s1 "U" ws stat:s2 nextchoise*:ss "}" ws { createChoice(:s1, :s2, :ss) };
+nextchoise = "U" ws stat;
+loop = "(" (sequence | choice):b ws ")*"$s ws {NmLoop(:b, $s)};
+while = "WHILE" ws "(" ws expr:e1 cond$s ws expr:e2 ")" ws stat:s1 {createWhile($s, :e1, :e2, :s1)};
+
+expr = const | binary_op | unnary_op | update | apply | var;
+const = digit+ $s ws {NmInt(s2i($s))};
+binary_op = "(" ws expr:l ("+"|"/"|"-"|"%") $s ws expr:r ")" ws {NmBinOp($s, :l, :r)};
+unnary_op  = "-" $s ws expr:e { NmUnOp($s, :e) };
+apply = "APP" ws "(" ws expr:a "," ws expr:i ")" ws { NmApp(:a, :i) };
+update = "UPD" ws "(" ws expr:a "," ws expr:i "," ws expr:v ")" ws { NmUpd(:a, :i, :v) };
+var = id:v { NmVar(:v) };
+
+cond = "!=" | "==" | "<=" | ">=" | "<" | ">";
+id = letter+ $s ws { $s };
+letter = 'a'-'z';
+digit  = '0'-'9';
+ws = (' ' | '\t' | '\n' | '\r')*;
+
+

@@ -1,0 +1,360 @@
+import nemo;
+
+export {
+VNmSeqAcc(stats : [[VNmStat]], max_lab : int);
+
+VNmChioceAcc(stats : [[VNmStat]], starts : [int], ends : [int], max_lab : int);
+
+VNmProg(decls : [NmDecl], body : [VNmStat]);
+
+VNmStat ::= VNmAssign, VNmIf;
+VNmAssign(var : string, val : NmExp, goto : [int]);
+VNmIf(cond : string, lhs : NmExp, rhs : NmExp, pos : [int], neg : [int]);
+// VNmPrint(expr : NmExp, goto : [int]);
+
+NmVal ::= NmValInt, NmValArr;
+NmValInt(val : int);
+NmValArr(arr : [NmVal]);
+
+NmState(vars : Tree<string, NmVal>);
+
+VNmConf(lab : int, state : NmState);
+
+nm2vnm(prog : NmProg) -> Maybe<VNmProg>;
+
+maxVmLabel(ss : [VNmStat]) -> int;
+
+addVmLabel(ss : [VNmStat], n : int) -> [VNmStat];
+
+replaceVmLabel(ss : [VNmStat], n : int, m : int) -> [VNmStat];
+
+nmStat2vnmStat(stat : NmStat) -> [VNmStat];
+
+vnmStat2s(s : VNmStat) -> string;
+
+vnmProg2s(p : VNmProg) -> string;
+
+s2vnm(str : string) -> VNmProg;
+
+vmStep(prog : VNmProg, conf : VNmConf) -> Set<VNmConf>;
+
+nmVal2s(val : NmVal) -> string;
+
+vmEvalCond(op : string, e1 : NmExp, e2 : NmExp, state : NmState) -> Maybe<bool>;
+
+vmEval(e : NmExp, state : NmState) -> Maybe<NmVal>;
+
+makeDefaultValue(type : NmType) -> NmVal;
+
+// runVnemo(prog : VNmProg, init : NmState) -> void;
+}
+
+nm2vnm(prog : NmProg) -> Maybe<VNmProg> {
+	err_count = ref 0;
+	onError = \err -> {
+		println("ERROR: " + err);
+		err_count := ^err_count + 1;
+	}
+	typecheckNmProgram(prog, onError);
+	if (^err_count == 0) {
+		Some(VNmProg(prog.decls, nmStat2vnmStat(prog.body)))
+	} else {
+		None()
+	}
+}
+
+maxVmLabel(ss : [VNmStat]) -> int {
+	max_lab = \labs -> fold(labs, -1, max);
+	max_stat = \s -> {
+		switch (s) {
+			VNmAssign(__,__, goto):    max_lab(goto);
+			VNmIf(__,__,__, pos, neg): max(max_lab(pos), max_lab(neg));
+			// VNmPrint(__, goto):        max_lab(goto);
+		}
+	}
+	fold(ss, -1, \acc, s -> max(acc, max_stat(s)))
+}
+
+addVmLabel(ss : [VNmStat], n : int) -> [VNmStat] {
+	add_lab = \labs -> fold(labs, [], \acc, l -> concat(acc, [l + n]));
+	add_stat = \s -> {
+		switch (s) {
+			VNmAssign(var, val, goto): VNmAssign(var, val, add_lab(goto));
+			VNmIf(c, l, r, pos, neg):  VNmIf(c, l, r, add_lab(pos), add_lab(neg));
+			// VNmPrint(e, goto):         VNmPrint(e, add_lab(goto));
+		}
+	}
+	fold(ss, [], \acc, s -> concat(acc, [add_stat(s)]))
+}
+
+replaceVmLabel(ss : [VNmStat], n : int, m : int) -> [VNmStat] {
+	replace_lab = \labs -> fold(labs, [], \acc, l -> concat(acc, if (l == n) [m] else [l]));
+	replace_stat = \s -> {
+		switch (s) {
+			VNmAssign(var, val, goto): VNmAssign(var, val, replace_lab(goto));
+			VNmIf(c, l, r, pos, neg):  VNmIf(c, l, r, replace_lab(pos), replace_lab(neg));
+			// VNmPrint(e, goto):         VNmPrint(e, replace_lab(goto));
+		}
+	}
+	fold(ss, [], \acc, s -> concat(acc, [replace_stat(s)]))
+}
+
+nmStat2vnmStat(stat : NmStat) -> [VNmStat] {
+	switch(stat) {
+		NmAssign(var, val): [VNmAssign(var, val, [1])];
+		// NmPrint(e): [VNmPrint(e, [1])];
+		NmTest(c, l, r): [VNmIf(c, l, r, [1], [])];
+		NmSeq(ss): 
+			concatA(fold(ss, VNmSeqAcc([], 0), \acc, s -> {
+					vs = nmStat2vnmStat(s);
+					size = maxVmLabel(vs);
+					VNmSeqAcc(concat(acc.stats, [addVmLabel(vs, acc.max_lab)]), acc.max_lab + size);
+				}
+			).stats);
+		NmChoice(ss): {
+			choices = fold(ss, VNmChioceAcc([], [], [], 1), \acc, s -> {
+					vs = nmStat2vnmStat(s);
+					size = maxVmLabel(vs);
+					VNmChioceAcc(
+						concat(acc.stats, [addVmLabel(vs, acc.max_lab)]),
+						concat(acc.starts, [acc.max_lab]),
+						concat(acc.ends, [acc.max_lab + size]),
+						acc.max_lab + size
+					);
+				}
+			);
+			concat(
+				[VNmIf("==", NmInt(0), NmInt(0), choices.starts, [])],
+				foldi(choices.stats, [], \i, acc, s ->
+					concat(acc, replaceVmLabel(s, choices.ends[i], choices.max_lab))
+				)
+			);
+		}
+		NmLoop(b, str): {
+			vs = addVmLabel(nmStat2vnmStat(b), 1);
+			size = maxVmLabel(vs);
+			concat(
+				[VNmIf("==", NmInt(0), NmInt(0), [1, size], [])],
+				replaceVmLabel(vs, size, 0)
+			)
+		}
+	}
+}
+
+vnmStat2s(s : VNmStat) -> string {
+	switch (s) {
+		VNmAssign(var, val, goto): var + " := " + nmExp2s(val) + " goto {" + strGlue(map(goto, i2s), " ") + "}";
+		VNmIf(c, l, r, pos, neg): 
+			"if (" + nmExp2s(l) + " " + c + " " + nmExp2s(r) + ") " +
+			"goto {" + strGlue(map(pos, i2s), " ") + "} else " + 
+			"goto {" + strGlue(map(neg, i2s), " ") + "}";
+		// VNmPrint(e, goto): "print(" + nmExp2s(e) + ")" + " goto {" + strGlue(map(goto, i2s), " ") + "}";
+	}
+}
+
+vnmProg2s(p : VNmProg) -> string {
+	fold(p.decls, "", \acc, decl -> acc + nmDecl2s(decl) + "\n") + "\n" +
+	foldi(p.body, "", \i, acc, s -> acc + i2s(i) + ": " + vnmStat2s(s) + "\n")
+}
+
+s2vnm(str : string) -> VNmProg {
+	parsic(compilePegGrammar("#include vnemo.lingo"), str, defaultPegActions)
+}
+
+vmStep(prog : VNmProg, conf : VNmConf) -> Set<VNmConf> {
+	switch (prog.body[conf.lab]) {
+		VNmAssign(var, val, goto):
+			eitherMap(vmEval(val, conf.state), 
+				\new_val -> {
+					new_state = NmState(setTree(conf.state.vars, var, new_val));
+					fold(goto, makeSet(), \acc, lab -> insertSet(acc, VNmConf(lab, new_state)));
+				},
+				makeSet()
+			);
+		VNmIf(c, l, r, pos, neg):
+			eitherMap(vmEvalCond(c, l, r, conf.state), 
+				\b -> 
+					if (b) {
+						fold(pos, makeSet(), \acc, lab -> insertSet(acc, VNmConf(lab, conf.state)));
+					} else {
+						fold(neg, makeSet(), \acc, lab -> insertSet(acc, VNmConf(lab, conf.state)));
+					},
+				makeSet()
+			);
+		// VNmPrint(e, goto): 
+		// 	eitherMap(vmEval(e, conf.state),
+		// 		\v -> {
+		// 			println(nmVal2s(v));
+		// 			fold(goto, makeSet(), \acc, lab -> insertSet(acc, VNmConf(lab, conf.state)));
+		// 		},
+		// 		makeSet()
+		// 	);
+	}
+}
+
+nmVal2s(val : NmVal) -> string {
+	switch (val) {
+		NmValInt(n): i2s(n);
+		NmValArr(arr): "[" + strGlue(map(arr, nmVal2s), ", ") + "]";
+	}
+}
+
+vmEvalCond(op : string, e1 : NmExp, e2 : NmExp, state : NmState) -> Maybe<bool> {
+	cond_op = \x, y -> {
+		if (op == "==") x == y else
+		if (op == "!=") x != y else
+		if (op == "<=") x <= y else
+		if (op == ">=") x >= y else
+		if (op == "<") x < y else
+		if (op == ">") x > y else
+		false;
+	}
+	maybeBind2(\e1v, e2v ->
+		switch (e1v) {
+			NmValInt(i1):
+				switch (e2v) {
+					NmValInt(i2): Some(cond_op(i1, i2));
+					default: {
+						println(op + "OPERAND IS NOT INTEGER: " + nmVal2s(e2v));
+						None();
+					}
+				}
+			default: {
+				println(op + "OPERAND IS NOT INTEGER: " + nmVal2s(e1v));
+				None();
+			}
+		}
+	)(vmEval(e1, state), vmEval(e2, state))
+}
+
+vmEval(e : NmExp, state : NmState) -> Maybe<NmVal> {
+	apply_bin_op = \op, x : int, y : int -> {
+		if (op == "+") x + y else
+		if (op == "*") x * y else
+		if (op == "-") x - y else
+		if (op == "/") x / y else
+		0
+	};
+	apply_un_op = \op, x : int -> {
+		if (op == "+") x else
+		if (op == "-") -x else
+		0
+	};
+	switch (e) {
+		NmBinOp(op, le, re):
+			maybeBind2(\lv, rv -> 
+				switch (lv) {
+					NmValInt(x): {
+						switch (rv) {
+							NmValInt(y):
+								Some(NmValInt(apply_bin_op(op, x, y)));
+							default: {
+								println(op + "OPERAND IS NOT INTEGER: " + nmVal2s(rv));
+								None();
+							}
+						}
+					}
+					default: {
+						println(op + "OPERAND IS NOT INTEGER: " + nmVal2s(lv));
+						None();
+					}
+				}
+			)(vmEval(le, state), vmEval(re, state));
+		NmUnOp(op, ee): 
+			maybeBind(vmEval(ee, state), \ev ->
+				switch (ev) {
+					NmValInt(x): {
+						Some(NmValInt(apply_un_op(op, x)));
+					}
+					default: {
+						println(op + "OPERAND IS NOT INTEGER: " + nmVal2s(ev));
+						None();
+					}
+				}
+			);
+		NmUpd(ae, ie, ve):
+			maybeBind(vmEval(ve, state), \vv ->
+				maybeBind2(\av, iv ->
+					switch (av) {
+						NmValArr(arr): {
+							switch (iv) {
+								NmValInt(i):
+									if (i < length(arr)) {
+										Some(NmValArr(foldi(arr, [], \j, acc, x -> concat(acc, [if (i == j) vv else x]))))
+									} else if (i == length(arr)) {
+										Some(NmValArr(concat(arr, [vv])));
+									} else {
+										println("OUT OF BOUNDS: " + i2s(i) + " > " + i2s(length(arr)));
+										None();
+									}
+								default: {
+									println("ARRAY INDEX IS NOT INTEGER: " + nmVal2s(iv));
+									None();
+								}
+							}
+						}
+						default: {
+							println("ARRAY VALUE IS NOT ARRAY: " + nmVal2s(av));
+							None();
+						}
+					}
+				)
+				(vmEval(ae, state), vmEval(ie, state))
+			);
+		NmApp(ae, ie):
+			maybeBind2(\av, iv ->
+				switch (av) {
+					NmValArr(arr): {
+						switch (iv) {
+							NmValInt(i):
+								if (i < length(arr)) {
+									Some(arr[i]) 
+								} else {
+									None();
+								}
+							default: {
+								println("ARRAY INDEX IS NOT INTEGER: " + nmVal2s(iv));
+								None();
+							}
+						}
+					}
+					default: {
+						println("ARRAY VALUE IS NOT ARRAY: " + nmVal2s(av));
+						None();
+					}
+				}
+			)(vmEval(ae, state), vmEval(ie, state));
+		NmVar(n): {
+			ret = lookupTree(state.vars, n);
+			if (ret == None()) {
+				println("VALUE " + n + " IS NOT EXPRETION");
+			}
+			ret
+		}
+		NmInt(val): Some(NmValInt(val));
+	}
+}
+
+makeDefaultValue(type : NmType) -> NmVal {
+	switch (type) {
+		NmIntType(): NmValInt(0);
+		NmArrType(a): NmValArr([]);
+	}
+}
+
+// runVnemo(prog : VNmProg, init : NmState) -> void {
+// 	max_lab = length(prog.body);
+// 	start_state = NmState(fold(prog.decls, init.vars, \acc, decl ->
+// 		switch (lookupTree(acc, decl.var)) {
+// 			Some(__): acc;
+// 			None(): setTree(acc, decl.var, makeDefaultValue(decl.type));
+// 		}
+// 	));
+// 	result = for(
+// 		makeSet1(VNmConf(0, start_state)),
+// 		\curr -> existsSet(curr, \conf -> conf.lab != max_lab),
+// 		\curr -> foldSet(curr, makeSet(), \acc, conf ->
+// 			mergeSets(acc, vmStep(prog, conf))
+// 		)
+// 	)
+// }

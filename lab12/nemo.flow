@@ -1,0 +1,249 @@
+import fs/filesystem;
+import ds/set;
+import ds/tree;
+import string;
+import lingo/pegcode/driver;
+
+export {
+    NmProg(decls : [NmDecl], body : NmStat);
+
+    NmDecl(var : string, type : NmType);
+
+    NmType ::= NmIntType, NmArrType;
+    NmIntType();
+    NmArrType(type : NmType);
+
+    NmExp ::= NmBinOp, NmUnOp, NmUpd, NmApp, NmVar, NmInt;
+    NmBinOp(op: string, lhs : NmExp, rhs : NmExp);
+    NmUnOp(op: string, e : NmExp);
+    NmUpd(arr : NmExp, ind : NmExp, val : NmExp);
+    NmApp(arr : NmExp, ind : NmExp);
+    NmVar(name : string);
+    NmInt(val : int);
+
+    NmStat ::= NmAssign, NmTest, NmSeq, NmChoice, NmLoop;
+    NmAssign(var : string, val : NmExp);
+    NmTest(cond : string, lhs : NmExp, rhs : NmExp);
+    NmSeq(stats : [NmStat]);
+    NmChoice(stats : [NmStat]);
+    NmLoop(body : NmStat, str : string);
+    // NmPrint(e : NmExp);
+
+    nmType2s(t : NmType) -> string;
+
+    nmDecl2s(d : NmDecl) -> string;
+
+    nmExp2s(e : NmExp) -> string;
+
+    nmStat2s(stat : NmStat) -> string;
+
+    nmProg2s(p : NmProg) -> string;
+
+    s2nm(str : string) -> NmProg;
+
+    nmProgTypedecls(prog : NmProg, onError : (string) -> void) -> Tree<string, NmType>;
+
+typecheckNmProgram(prog : NmProg, onError : (string) -> void) -> void;
+
+typecheckNmStat(stat : NmStat, typedecls : Tree<string, NmType>, onError : (string) -> void) -> void;
+
+evalNmType(expr : NmExp, typedecls : Tree<string, NmType>, onError : (string) -> void) -> Maybe<NmType>;
+}
+
+nmType2s(t : NmType) -> string {
+        switch (t) {
+            NmIntType(): "int";
+            NmArrType(a): "[" + nmType2s(a) + "]";
+        }
+}
+
+nmDecl2s(d : NmDecl) -> string {
+	"var " + d.var + " : " + nmType2s(d.type) + ";"
+}
+
+nmExp2s(e : NmExp) -> string {
+	switch (e) {
+		NmBinOp(op, l, r): "(" + nmExp2s(l) + " " + op + " " + nmExp2s(r) + ")";
+		NmUnOp(op, e1): op + " " + nmExp2s(e1);
+		NmUpd(a, i, v): "upd(" + nmExp2s(a) + ", " + nmExp2s(i) + ", " + nmExp2s(v) + ")";
+		NmApp(a, i): "app(" + nmExp2s(a) + ", " + nmExp2s(i) + ")";
+		NmVar(name): name;
+		NmInt(val): i2s(val);
+	}
+}
+
+nmStat2s(stat : NmStat) -> string {
+	indentStr = \str -> strGlue(map(strSplit(str, "\n"), \s -> "\t" + s), "\n");
+	switch (stat) {
+		NmAssign(var, val): var + " := " + nmExp2s(val);
+		NmTest(c, l, r): "(" + nmExp2s(l) + " " + c + " " + nmExp2s(r) + ")";
+		NmSeq(ss): "{\n" + strGlue(map(ss, \s -> indentStr(nmStat2s(s))), ";\n") + "\n}";
+		NmChoice(ss): "{\n" + strGlue(map(ss, \s -> indentStr(nmStat2s(s))), "U\n") + "\n}";
+		NmLoop(body, str): "*" + nmStat2s(body);
+		// NmPrint(e): "print(" + nmExp2s(e) + ")";
+	}
+}
+
+nmProg2s(p : NmProg) -> string {
+	strGlue(map(p.decls, nmDecl2s), "\n") + "\n" +
+	nmStat2s(p.body)
+}
+
+s2nm(str : string) -> NmProg {
+	parsic(compilePegGrammar("#include nemo.lingo"), 
+		str, 
+		SemanticActions(
+			mergeTree(defaultPegActions.t,
+			pairs2tree([
+				Pair("createS", \s -> NmSeq([])),
+				Pair("createSeq", \s -> NmSeq(concat([s[0]], s[1]))),
+				Pair("createChoice", \s -> NmChoice(concat3([s[0]], [s[1]], s[2]))),
+				Pair("createWhile", \s -> 
+					NmSeq([
+						NmLoop(NmSeq([NmTest(s[0], s[1], s[2]), s[3]]), "*"),
+						NmTest(condConver(s[0]), s[1], s[2])
+					])
+				),
+			]))
+		)
+	)
+}
+
+nmProgTypedecls(prog : NmProg, onError : (string) -> void) -> Tree<string, NmType> {
+	fold(prog.decls, makeTree(), \acc, decl -> {
+		if (containsKeyTree(acc, decl.var)) onError("REPEATED VALUE: " + decl.var);
+		setTree(acc, decl.var, decl.type)
+	})
+}
+
+typecheckNmProgram(prog : NmProg, onError : (string) -> void) -> void {
+	typecheckNmStat(prog.body, nmProgTypedecls(prog, onError), onError)
+}
+
+typecheckNmStat(stat : NmStat, typedecls : Tree<string, NmType>, onError : (string) -> void) -> void {
+	switch (stat) {
+		NmAssign(var, val):
+			switch (lookupTree(typedecls, var)) {
+				Some(var_type): {
+					maybeApply(evalNmType(val, typedecls, onError), \val_type ->
+						if (val_type != var_type) onError("INVALID ASSIGNMENT IN: " + var + " EXPRETION TYPE: " + nmType2s(var_type) + " VALUE TYPE: " + nmType2s(val_type))
+					)
+				}
+				None(): onError("UNWRITTEN VALUE: " + var);
+			}
+		NmTest(op, l, r):
+			maybeApply(evalNmType(l, typedecls, onError), \l_type ->
+				maybeApply(evalNmType(r, typedecls, onError), \r_type -> {
+					if (l_type != NmIntType()) onError("INCORRECT TYPE IN TEST, OERATION: " + op + " LEFT EXPRETION TYPE: " + nmType2s(l_type));
+					if (r_type != NmIntType()) onError("INCORRECT TYPE IN TEST, OERATION: " + op + " RIGTH EXPRETION TYPE: " + nmType2s(r_type))
+				})
+			);
+		NmSeq(stats):
+			iter(stats, \s -> typecheckNmStat(s, typedecls, onError));
+		NmChoice(stats):
+			iter(stats, \s -> typecheckNmStat(s, typedecls, onError));
+		NmLoop(body, str):
+			typecheckNmStat(body, typedecls, onError);
+		// NmPrint(e): {
+		// 	evalNmType(e, typedecls, onError);
+		// 	{}
+		// }
+	}
+}
+
+evalNmType(expr : NmExp, typedecls : Tree<string, NmType>, onError : (string) -> void) -> Maybe<NmType> {
+	switch (expr) {
+		NmBinOp(op, l, r):
+			maybeBind2(
+				\l_type, r_type -> {
+					if (l_type != NmIntType()) {
+						onError("INCORRECT TYPE IN BINARY: " + op + " LEFT EXPRATION TYPE: " + nmType2s(l_type));
+						None();
+					} else {
+						if (r_type != NmIntType()) {
+							onError("INCORRECT TYPE IN BINARY: " + op + " RIGTH EXPRATION TYPE: " + nmType2s(r_type));
+							None();
+						} else {
+							Some(NmIntType());
+						}
+					}
+				}
+			)
+			(evalNmType(l, typedecls, onError), evalNmType(r, typedecls, onError));
+		NmUnOp(op, e):
+			maybeBind(evalNmType(e, typedecls, onError), 
+				\e_type -> {
+					if (e_type != NmIntType()) {
+						onError("INCORRECT TYPE IN UNARY: " + op + " TYPE: " + nmType2s(e_type));
+						None()
+					} else {
+						Some(NmIntType());
+					}
+				}
+			);
+		NmUpd(arr, ind, upd):
+			maybeBind(evalNmType(upd, typedecls, onError), \upd_type ->
+				maybeBind2(
+					\arr_type, ind_type -> {
+						switch (arr_type) {
+							NmArrType(val_type): {
+								if (ind_type != NmIntType()) {
+									onError("INCORRECT TYPE IN UPDATE: " + nmType2s(ind_type));
+									None();
+								} else {
+									if (upd_type == val_type) {
+										Some(NmArrType(val_type));
+									} else {
+										onError("INCORRECT TYPE IN UPDATE: " + nmType2s(upd_type));
+										None();
+									}
+								}
+							}
+							default: {
+								onError("INCORRECT TYPE IN UPDATE: " + nmType2s(arr_type));
+								None();
+							}
+						}
+					}
+				)
+				(evalNmType(arr, typedecls, onError), evalNmType(ind, typedecls, onError))
+			);
+		NmApp(arr, ind):
+			maybeBind2(
+				\arr_type, ind_type -> {
+					switch (arr_type) {
+						NmArrType(val_type): {
+							if (ind_type != NmIntType()) {
+								onError("INCORRECT TYPE IN ARRAY: " + nmType2s(ind_type));
+								None();
+							} else {
+								Some(val_type);
+							}
+						}
+						default: {
+							onError("INCORRECT TYPE IN ARRAY: " + nmType2s(arr_type));
+							None();
+						}
+					}
+				}
+			)
+			(evalNmType(arr, typedecls, onError), evalNmType(ind, typedecls, onError));
+		NmVar(name): {
+			ret = lookupTree(typedecls, name);
+			if (ret == None()) {
+				onError("UNWRITTEN VALUE: " + name);
+			}
+			ret
+		}
+		NmInt(__): Some(NmIntType());
+	}
+}
+
+condConver(cond : string) -> string {
+    if (cond == "!=") "==" else
+    if (cond == "==") "!=" else
+    if (cond == "<") ">=" else
+    if (cond == ">") "<=" else
+    if (cond == "<=") ">" else
+    if (cond == ">=") "<" else "";
+}
