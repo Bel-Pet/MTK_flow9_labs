@@ -1,0 +1,10 @@
+var x : int;
+var y : int;
+
+0: if (0 == 0) goto {1 6} else goto {}
+1: if (0 == 0) goto {2 4} else goto {}
+2: if (x > y) goto {3} else goto {}
+3: x := (x - y) goto {0}
+4: if (x < y) goto {5} else goto {}
+5: y := (y - x) goto {0}
+6: if (x == y) goto {7} else goto {}

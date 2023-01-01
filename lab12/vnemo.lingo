@@ -5,7 +5,7 @@ type  = int | array;
 int   = "int" ws { NmIntType() };
 array = "[" ws type:t "]" ws { NmArrType(:t) };
 
-stat   = intval ":" ws ( assign | ifelse);
+stat   = intval ":" ws (assign | ifelse);
 assign = id:v ":=" ws expr:e goto:gt ws  { VNmAssign(:v, :e, :gt) };
 ifelse = "if" ws "(" ws expr:e1 cond$s ws expr:e2 ")" ws goto:pos "else" ws goto:neg { VNmIf($s, :e1, :e2, :pos, :neg) };
 goto   = "goto" ws "{" ws label*:labs "}" ws { :labs };

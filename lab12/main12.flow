@@ -1,0 +1,31 @@
+import ds/tree; 
+import string; 
+import lingo/pegcode/driver; 
+import ast; 
+import fs/filesystem; 
+import vnemo_run; 
+import transl; 
+import checktype; 
+ 
+main() { 
+    file = "test.nm"; 
+    src = getFileContent(file); 
+    prog = s2nm(src); 
+    err_count = ref 0;      
+    err = \msg -> { 
+        err_count := ^err_count + 1; 
+        println(msg) 
+    } 
+	
+    switch (nm2vnm(prog)) {                                                             
+        Some(vprog):{ 
+            fileD =  changeFileExt(file, ".vnm");                                        
+            setFileContent(fileD, vnmProg2s(vprog)); 
+            println(vnmProg2s(vprog));                                                   
+            s2vnm(getFileContent(fileD));                                               
+            runVnemo(vprog, NmState(makeTree()));                                       
+            } 
+        None(): { } 
+    }    
+    quit(0); 
+}

@@ -1,0 +1,32 @@
+import ds/tree; 
+import string; 
+import lingo/pegcode/driver; 
+import ast; 
+import checktype; 
+ 
+main() { 
+        file = "test.nm"; 
+        src = getFileContent(file); 
+
+        println("statr");
+        prog = s2nm(src); 
+        println("stat");
+        err_count = ref 0; 
+
+        err = \msg -> { 
+            err_count := ^err_count + 1; 
+            println(msg) 
+        } 
+
+        typecheckNmProgram(prog, err); 
+        if (^err_count == 0) { 
+            println("nemo prog " + file + ":"); 
+            println(nmProg2s(prog)); 
+            println("prog"); 
+            println("\n"); 
+            println(prog); 
+        }else{ 
+            println("ERROR"); 
+        } 
+    quit(0); 
+}
